@@ -1,10 +1,20 @@
-import os
-import re
-from typing import TypedDict
-
-from .modules.materials.generate_highpoly_material import generate_highpoly_material
-
 import bpy  # type: ignore
+
+from .modules.bake.bake_ambient_occlusion import bake_ambient_occlusion
+from .modules.bake.bake_basecolor import bake_basecolor
+from .modules.bake.bake_normal import bake_normal
+from .modules.bake.bake_object import get_bake_objects
+from .modules.bake.bake_roughness_metallic import bake_roughness_metallic
+from .modules.materials.generate_highpoly_material import generate_highpoly_material
+from .modules.materials.get_or_generate_bake_bc_material import (
+    get_or_generate_bake_bc_material,
+)
+from .modules.materials.get_or_generate_bake_rmo_material import (
+    get_or_generate_bake_rmo_material,
+)
+from .modules.utilities.custom_sort import custom_sort
+from .modules.utilities.get_highpoly_names import get_highpoly_names
+from .modules.utilities.save_image import save_image
 
 bl_info = {
     "name": "Texture Baker",
@@ -17,398 +27,6 @@ bl_info = {
     "doc_url": "",
     "category": "3D View",
 }
-
-
-def get_or_generate_bake_bc_material() -> bpy.types.Material:
-    """Bake BC用のマテリアルを生成する
-
-    Returns:
-        bpy.types.Material: Bake BC用のマテリアル
-    """
-
-    # 既にマテリアルが存在する場合はそれを返す
-    bake_bc_material = bpy.data.materials.get("bake_BC")
-    if bake_bc_material is not None:
-        return bake_bc_material
-
-    # マテリアルの生成
-    bake_bc_material = bpy.data.materials.new(name="bake_BC")
-    bake_bc_material.use_nodes = True
-    nodes = bake_bc_material.node_tree.nodes
-    links = bake_bc_material.node_tree.links
-
-    # ノードの追加
-    node_principled = nodes["Principled BSDF"]
-
-    bc_node = nodes.new(type="ShaderNodeTexImage")
-    bc_node.name = "BaseColor"
-    bc_node.location = (-400, 0)
-
-    # ノードの接続
-    links.new(bc_node.outputs["Color"], node_principled.inputs["Base Color"])
-
-    return bake_bc_material
-
-
-def get_or_generate_bake_rmo_material() -> bpy.types.Material:
-    """Bake RMO用のマテリアルを生成する
-
-    Returns:
-        bpy.types.Material: Bake RMO用のマテリアル
-    """
-
-    # 既にマテリアルが存在する場合はそれを返す
-    bake_rmo_material = bpy.data.materials.get("bake_RMO")
-    if bake_rmo_material is not None:
-        return bake_rmo_material
-
-    # マテリアルの生成
-    bake_rmo_material = bpy.data.materials.new(name="bake_RMO")
-    bake_rmo_material.use_nodes = True
-    nodes = bake_rmo_material.node_tree.nodes
-    links = bake_rmo_material.node_tree.links
-
-    # ノードの追加
-    node_principled = nodes["Principled BSDF"]
-
-    rm_node = nodes.new(type="ShaderNodeTexImage")
-    rm_node.name = "RoughnessMetallic"
-    rm_node.location = (-600, 0)
-
-    separate_rm = nodes.new(type="ShaderNodeSeparateXYZ")
-    separate_rm.location = (-400, 0)
-
-    ao_node = nodes.new(type="ShaderNodeTexImage")
-    ao_node.name = "AmbientOcclusion"
-    ao_node.location = (-600, 200)
-
-    separate_ao = nodes.new(type="ShaderNodeSeparateXYZ")
-    separate_ao.location = (-400, 200)
-
-    combine = nodes.new(type="ShaderNodeCombineXYZ")
-    combine.location = (-200, 100)
-
-    # ノードの接続
-    links.new(rm_node.outputs["Color"], separate_rm.inputs["Vector"])
-    links.new(ao_node.outputs["Color"], separate_ao.inputs["Vector"])
-    links.new(separate_rm.outputs["X"], combine.inputs["X"])
-    links.new(separate_rm.outputs["Y"], combine.inputs["Y"])
-    links.new(separate_ao.outputs["Z"], combine.inputs["Z"])
-    links.new(combine.outputs["Vector"], node_principled.inputs["Base Color"])
-
-    return bake_rmo_material
-
-
-def get_or_generate_material(name: str) -> bpy.types.Material:
-    """Bake用のマテリアルを生成する
-
-    Returns:
-        bpy.types.Material: Bake用のマテリアル
-    """
-
-    # 既にマテリアルが存在する場合はそれを返す
-    material = bpy.data.materials.get(name)
-    if material is not None:
-        return material
-
-    # マテリアルの生成
-    material = bpy.data.materials.new(name=name)
-    material.use_nodes = True
-    nodes = material.node_tree.nodes
-    links = material.node_tree.links
-
-    # ノードの追加
-    node_principled = nodes["Principled BSDF"]
-
-    bc_node = nodes.new(type="ShaderNodeTexImage")
-    bc_node.name = "BaseColor"
-    bc_node.location = (-700, 300)
-    bc_image = bpy.data.images.new(f"T_{name}_BC", 8192, 8192)
-    bc_image.alpha_mode = "NONE"
-    bc_node.image = bc_image
-
-    rmo_node = nodes.new(type="ShaderNodeTexImage")
-    rmo_node.name = "RMO"
-    rmo_node.location = (-700, 0)
-    rmo_image = bpy.data.images.new(f"T_{name}_RMO", 8192, 8192)
-    rmo_image.alpha_mode = "NONE"
-    rmo_image.colorspace_settings.name = "Non-Color"
-    rmo_node.image = rmo_image
-
-    separate_rmo = nodes.new(type="ShaderNodeSeparateXYZ")
-    separate_rmo.location = (-400, 100)
-
-    mix = nodes.new(type="ShaderNodeMixRGB")
-    mix.location = (-200, 300)
-    mix.blend_type = "MULTIPLY"
-
-    n_node = nodes.new(type="ShaderNodeTexImage")
-    n_node.name = "Normal"
-    n_node.location = (-700, -300)
-    n_image = bpy.data.images.new(f"T_{name}_N", 8192, 8192)
-    n_image.alpha_mode = "NONE"
-    n_image.colorspace_settings.name = "Non-Color"
-    n_node.image = n_image
-
-    normal_map = nodes.new(type="ShaderNodeNormalMap")
-    normal_map.location = (-200, -300)
-    normal_map.space = "TANGENT"
-
-    bc_uvmap = nodes.new(type="ShaderNodeUVMap")
-    bc_uvmap.location = (-900, 200)
-
-    rmo_uvmap = nodes.new(type="ShaderNodeUVMap")
-    rmo_uvmap.location = (-900, -100)
-
-    n_uvmap = nodes.new(type="ShaderNodeUVMap")
-    n_uvmap.location = (-900, -400)
-
-    # ノードの接続
-    links.new(rmo_node.outputs["Color"], separate_rmo.inputs["Vector"])
-    links.new(bc_node.outputs["Color"], mix.inputs["Color1"])
-    links.new(separate_rmo.outputs["X"], node_principled.inputs["Roughness"])
-    links.new(separate_rmo.outputs["Y"], node_principled.inputs["Metallic"])
-    links.new(separate_rmo.outputs["Z"], mix.inputs["Color2"])
-    links.new(mix.outputs["Color"], node_principled.inputs["Base Color"])
-
-    links.new(n_node.outputs["Color"], normal_map.inputs["Color"])
-    links.new(normal_map.outputs["Normal"], node_principled.inputs["Normal"])
-
-    links.new(bc_uvmap.outputs["UV"], bc_node.inputs["Vector"])
-    links.new(rmo_uvmap.outputs["UV"], rmo_node.inputs["Vector"])
-    links.new(n_uvmap.outputs["UV"], n_node.inputs["Vector"])
-
-    return material
-
-
-def get_highpoly_names() -> list[str]:
-    """シーン内のハイポリメッシュの名前を取得する
-        hi_で始まるオブジェクトを取得する
-
-    Returns:
-        list[str]: ハイポリメッシュの名前のリスト
-    """
-
-    highpoly_names = []
-
-    for ob in bpy.context.visible_objects:
-        if ob.type != "MESH":
-            continue
-
-        if ob.name.startswith("hi_"):
-            highpoly_names.append(ob.name)
-
-    return highpoly_names
-
-
-def custom_sort(lst: list[str]) -> list[str]:
-    """#が含まれているオブジェクトを後ろにソートする
-
-    Args:
-        lst (list[str]): ソート前のリスト
-
-    Returns:
-        list[str]: ソート後のリスト
-    """
-
-    # リスト内の各要素を#の有無に応じて2つのリストに分割
-    with_hash, without_hash = [], []
-    for item in lst:
-        if "#" in item:
-            with_hash.append(item)
-        else:
-            without_hash.append(item)
-
-    # #を含む要素を後ろにソートして、元のリストに結合
-    sorted_list = without_hash + sorted(with_hash)
-
-    return sorted_list
-
-
-class BakeObject(TypedDict):
-    target: str
-    sources: list[str]
-
-
-def get_bake_objects(highpoly_names: list[str]) -> list[BakeObject]:
-    """bakeオブジェクトの情報を取得する
-        hi_A_Bの場合、AにBakeする
-        hi_A#_Bの場合、ACやADなど#を.*にしてregexしたメッシュにBakeする
-
-    Returns:
-        list[dict]: bakeオブジェクトの情報のリスト
-    """
-
-    bake_objects: list[BakeObject] = []
-
-    for highpoly_name in highpoly_names:
-        lowpoly_name = highpoly_name.lstrip("hi_").split("_")[0].replace("#", ".*")
-
-        pattern = re.compile(lowpoly_name)
-        match_bakes: list[BakeObject] = list(
-            filter(lambda m: pattern.search(m["target"]), bake_objects)
-        )
-        if len(match_bakes) == 0:
-            bake_object: BakeObject = {
-                "target": lowpoly_name,
-                "sources": [highpoly_name],
-            }
-            bake_objects.append(bake_object)
-        else:
-            for bake in match_bakes:
-                bake["sources"].append(highpoly_name)
-
-    return bake_objects
-
-
-def bake_ambient_occlusion(highpoly_names: list[str]):
-    targets = [bpy.data.objects[name] for name in highpoly_names]
-
-    # 選択を解除
-    for ob in bpy.data.objects:
-        ob.select_set(False)
-
-    for target in targets:
-        material = target.material_slots[0].material
-        nodes = material.node_tree.nodes
-        links = material.node_tree.links
-
-        node = nodes["AmbientOcclusion"]
-        node.image.generated_color = (0, 0, 0, 1)
-        nodes.active = node
-        node.select = True
-
-        link = node.outputs["Color"].links[0]
-        links.remove(link)
-
-        bpy.context.view_layer.objects.active = target
-        target.select = True
-
-    bpy.ops.object.bake(type="AO")
-
-    for target in targets:
-        material = target.material_slots[0].material
-        nodes = material.node_tree.nodes
-        links = material.node_tree.links
-
-        node = nodes["AmbientOcclusion"]
-        node.select = False
-        links.new(node.outputs["Color"], nodes["AmbientOcclusion Separate"].inputs["Vector"])
-
-def bake_color(
-    bake_object: BakeObject,
-    target: bpy.types.Object,
-    bake_bc_material: bpy.types.Material,
-    baked_materials: list[bpy.types.Material],
-):
-    source_materials = []
-    for bake_source in bake_object["sources"]:
-        source = bpy.data.objects[bake_source]
-        bpy.context.view_layer.objects.active = source
-        source_material = source.material_slots[0].material
-        source_materials.append(source_material)
-
-        target_material_name = source_material.name.replace("hi_", "")
-        material = bpy.data.materials.get(target_material_name)
-        if material is None:
-            material = get_or_generate_material(target_material_name)
-            baked_materials.append(material)
-        if len(target.material_slots) == 0:
-            target.data.materials.append(material)
-        else:
-            target.material_slots[0].material = material
-
-        bc_node = bake_bc_material.node_tree.nodes["BaseColor"]
-        bc_node.image = source_material.node_tree.nodes["BaseColor"].image
-        source.material_slots[0].material = bake_bc_material
-
-    bpy.context.view_layer.objects.active = target
-    nodes = target.material_slots[0].material.node_tree.nodes
-    nodes["BaseColor"].image.generated_color = (0, 0, 0, 1)
-    nodes["BaseColor"].select = True
-    nodes.active = nodes["BaseColor"]
-
-    bpy.ops.object.bake(type="DIFFUSE")
-    nodes["BaseColor"].select = False
-
-    for bake_source, source_material in zip(bake_object["sources"], source_materials):
-        source = bpy.data.objects[bake_source]
-        source.material_slots[0].material = source_material
-
-
-def bake_roughness_metallic(
-    bake_object: BakeObject,
-    target: bpy.types.Object,
-    bake_rmo_material: bpy.types.Material,
-):
-    source_materials = []
-    for bake_source in bake_object["sources"]:
-        source = bpy.data.objects[bake_source]
-        bpy.context.view_layer.objects.active = source
-        source_material = source.material_slots[0].material
-        source_materials.append(source_material)
-
-        rm_node = bake_rmo_material.node_tree.nodes["RoughnessMetallic"]
-        rm_node.image = source_material.node_tree.nodes["RoughnessMetallic"].image
-        ao_node = bake_rmo_material.node_tree.nodes["AmbientOcclusion"]
-        ao_node.image = source_material.node_tree.nodes["AmbientOcclusion"].image
-        source.material_slots[0].material = bake_rmo_material
-
-    bpy.context.view_layer.objects.active = target
-    nodes = target.material_slots[0].material.node_tree.nodes
-    nodes["RMO"].image.generated_color = (0, 0, 0, 1)
-    nodes["RMO"].select = True
-    nodes.active = nodes["RMO"]
-
-    bpy.ops.object.bake(type="DIFFUSE")
-    nodes["RMO"].select = False
-
-    for bake_source, source_material in zip(bake_object["sources"], source_materials):
-        source = bpy.data.objects[bake_source]
-        source.material_slots[0].material = source_material
-
-
-def bake_normal(bake_object: BakeObject, target: bpy.types.Object):
-    for bake_source in bake_object["sources"]:
-        source = bpy.data.objects[bake_source]
-        bpy.context.view_layer.objects.active = source
-
-    bpy.context.view_layer.objects.active = target
-    nodes = target.material_slots[0].material.node_tree.nodes
-    nodes["Normal"].image.generated_color = (0, 0, 0, 1)
-    nodes["Normal"].select = True
-    nodes.active = nodes["Normal"]
-
-    bpy.ops.object.bake(type="NORMAL")
-    nodes["Normal"].select = False
-
-
-def save_image(material: bpy.types.Material):
-    nodes = material.node_tree.nodes
-
-    image = nodes["BaseColor"].image
-    filename = bpy.path.abspath(f"//{image.name.split('.', 1)[0]}.tga")
-    if os.path.exists(filename):
-        os.remove(filename)
-    image.save(filepath=filename)
-    image.pack()
-    print(f"Texture Baker: Save {filename}")
-
-    image = nodes["RMO"].image
-    filename = bpy.path.abspath(f"//{image.name.split('.', 1)[0]}.tga")
-    if os.path.exists(filename):
-        os.remove(filename)
-    image.save(filepath=filename)
-    image.pack()
-    print(f"Texture Baker: Save {filename}")
-
-    image = nodes["Normal"].image
-    filename = bpy.path.abspath(f"//{image.name.split('.', 1)[0]}.tga")
-    if os.path.exists(filename):
-        os.remove(filename)
-    image.save(filepath=filename)
-    image.pack()
-    print(f"Texture Baker: Save {filename}")
 
 
 # Define a new operator (action or function)
@@ -479,8 +97,10 @@ class BakeTextureOperator(bpy.types.Operator):
             target.select_set(True)
 
             print(f"Texture Baker: Baking Base Color of {bake_object['target']}")
-            bake_color(bake_object, target, bake_bc_material, baked_materials)
-            print(f"Texture Baker: Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}")
+            bake_basecolor(bake_object, target, bake_bc_material, baked_materials)
+            print(
+                f"Texture Baker: Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}"
+            )
             bake_roughness_metallic(bake_object, target, bake_rmo_material)
             print(f"Texture Baker: Baking Normal of {bake_object['target']}")
             bake_normal(bake_object, target)
@@ -509,7 +129,9 @@ class CreateMaterialOperator(bpy.types.Operator):
         print("Texture Baker: Create Material Start")
 
         generate_highpoly_material(context.scene.texture_baker_material_name)
-        print(f"Texture Baker: Create {context.scene.texture_baker_material_name} Material")
+        print(
+            f"Texture Baker: Create {context.scene.texture_baker_material_name} Material"
+        )
         self.report({"INFO"}, "Texture Baker: Material Created")
         return {"FINISHED"}
 

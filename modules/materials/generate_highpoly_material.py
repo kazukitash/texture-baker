@@ -1,4 +1,4 @@
-import bpy # type: ignore
+import bpy  # type: ignore
 
 
 def generate_highpoly_material(name: str) -> bpy.types.Material:
@@ -22,7 +22,7 @@ def generate_highpoly_material(name: str) -> bpy.types.Material:
     links = material.node_tree.links
 
     # Principled BSDFノードを取得
-    node_principled = nodes["Principled BSDF"]
+    principled = nodes["Principled BSDF"]
 
     # BaseColorのノードを生成
     bc_node = nodes.new(type="ShaderNodeTexImage")
@@ -78,19 +78,17 @@ def generate_highpoly_material(name: str) -> bpy.types.Material:
     rm_separate.name = "RoughnessMetallic Separate"
     rm_separate.location = (-400, -200)
 
-
-
     # ノードの接続
     # BaseColor
     links.new(ao_node.outputs["Color"], ao_separate.inputs["Vector"])
     links.new(bc_node.outputs["Color"], mix.inputs["Color1"])
     links.new(ao_separate.outputs["Z"], mix.inputs["Color2"])
-    links.new(mix.outputs["Color"], node_principled.inputs["Base Color"])
+    links.new(mix.outputs["Color"], principled.inputs["Base Color"])
 
     # Roughness, Metallic
     links.new(rm_node.outputs["Color"], rm_separate.inputs["Vector"])
-    links.new(rm_separate.outputs["X"], node_principled.inputs["Roughness"])
-    links.new(rm_separate.outputs["Y"], node_principled.inputs["Metallic"])
+    links.new(rm_separate.outputs["X"], principled.inputs["Roughness"])
+    links.new(rm_separate.outputs["Y"], principled.inputs["Metallic"])
 
     # UVMap
     links.new(bc_uvmap.outputs["UV"], bc_node.inputs["Vector"])
