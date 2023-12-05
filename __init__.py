@@ -2,6 +2,8 @@ import os
 import re
 from typing import TypedDict
 
+from .modules.materials.generate_highpoly_material import generate_highpoly_material
+
 import bpy  # type: ignore
 
 bl_info = {
@@ -506,6 +508,7 @@ class CreateMaterialOperator(bpy.types.Operator):
     def execute(self, context):
         print("Texture Baker: Create Material Start")
 
+        generate_highpoly_material(context.scene.texture_baker_material_name)
         print(f"Texture Baker: Create {context.scene.texture_baker_material_name} Material")
         self.report({"INFO"}, "Texture Baker: Material Created")
         return {"FINISHED"}
