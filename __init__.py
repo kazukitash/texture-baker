@@ -5,12 +5,12 @@ from typing import TypedDict
 import bpy  # type: ignore
 
 bl_info = {
-    "name": "Bake BC,RMO,Normal Textures from HiPoly",
+    "name": "Texture Baker",
     "author": "kazukitash",
     "version": (2, 0),
-    "blender": (3, 6, 1),
-    "location": "View3D > UI > Bake from HiPoly",
-    "description": "Bake BC,RMO,Normal Textures from HiPoly",
+    "blender": (3, 6, 5),
+    "location": "View3D > UI > Texture Baker",
+    "description": "Bake Textures for BaseColor, Roughness, Metallic, AmbientOcclusion, Normal from HighPoly",
     "warning": "",
     "doc_url": "",
     "category": "3D View",
@@ -260,8 +260,6 @@ def get_bake_objects(highpoly_names: list[str]) -> list[BakeObject]:
 
 
 def bake_ambient_occlusion(highpoly_names: list[str]):
-    bpy.data.collections["game"].hide_render = True
-
     targets = [bpy.data.objects[name] for name in highpoly_names]
 
     # 選択を解除
@@ -269,19 +267,31 @@ def bake_ambient_occlusion(highpoly_names: list[str]):
         ob.select_set(False)
 
     for target in targets:
-        nodes = target.material_slots[0].material.node_tree.nodes
-        nodes["AmbientOcclusion"].image.generated_color = (0, 0, 0, 1)
-        nodes.active = nodes["AmbientOcclusion"]
-        nodes["AmbientOcclusion"].select = True
+        material = target.material_slots[0].material
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
+
+        node = nodes["AmbientOcclusion"]
+        node.image.generated_color = (0, 0, 0, 1)
+        nodes.active = node
+        node.select = True
+
+        link = node.outputs["Color"].links[0]
+        links.remove(link)
 
         bpy.context.view_layer.objects.active = target
         target.select = True
 
     bpy.ops.object.bake(type="AO")
-    nodes["AmbientOcclusion"].select = False
 
-    bpy.data.collections["game"].hide_render = False
+    for target in targets:
+        material = target.material_slots[0].material
+        nodes = material.node_tree.nodes
+        links = material.node_tree.links
 
+        node = nodes["AmbientOcclusion"]
+        node.select = False
+        links.new(node.outputs["Color"], nodes["AmbientOcclusion Separate"].inputs["Vector"])
 
 def bake_color(
     bake_object: BakeObject,
@@ -380,6 +390,7 @@ def save_image(material: bpy.types.Material):
         os.remove(filename)
     image.save(filepath=filename)
     image.pack()
+    print(f"Texture Baker: Save {filename}")
 
     image = nodes["RMO"].image
     filename = bpy.path.abspath(f"//{image.name.split('.', 1)[0]}.tga")
@@ -387,6 +398,7 @@ def save_image(material: bpy.types.Material):
         os.remove(filename)
     image.save(filepath=filename)
     image.pack()
+    print(f"Texture Baker: Save {filename}")
 
     image = nodes["Normal"].image
     filename = bpy.path.abspath(f"//{image.name.split('.', 1)[0]}.tga")
@@ -394,31 +406,34 @@ def save_image(material: bpy.types.Material):
         os.remove(filename)
     image.save(filepath=filename)
     image.pack()
+    print(f"Texture Baker: Save {filename}")
 
 
 # Define a new operator (action or function)
-class BakeAllOperator(bpy.types.Operator):
-    bl_idname = "object.bake_all"
+class BakeTextureOperator(bpy.types.Operator):
+    bl_idname = "object.texture_baker_bake_texture"
     bl_label = "Bake"
 
     def execute(self, context):
-        self.report({"INFO"}, "Bake Start")
+        print("Texture Baker: Bake Start")
 
+        print("Texture Baker: Set Bake Settings")
         render_engine = bpy.context.scene.render.engine
         if render_engine != "CYCLES":
             bpy.context.scene.render.engine = "CYCLES"
 
         cycles_preferences = bpy.context.preferences.addons["cycles"].preferences
         if bpy.app.build_platform == b"Windows":
+            print("Texture Baker: Set CUDA")
             cycles_preferences.compute_device_type = "CUDA"
             cycles_preferences.refresh_devices()
             cycles_preferences.devices["NVIDIA GeForce RTX 4090"].use = True
         else:
+            print("Texture Baker: Set METAL")
             cycles_preferences.compute_device_type = "METAL"
             cycles_preferences.refresh_devices()
             cycles_preferences.devices["Apple M2 Max (GPU - 38 cores)"].use = True
         bpy.context.scene.cycles.device = "GPU"
-        bpy.context.scene.render.bake.use_selected_to_active = False
         bpy.context.scene.render.bake.use_cage = True
         bpy.context.scene.render.bake.use_clear = False
         bpy.context.scene.render.bake.margin = 8
@@ -427,19 +442,28 @@ class BakeAllOperator(bpy.types.Operator):
         bpy.context.scene.render.bake.use_pass_indirect = False
         bpy.context.scene.render.bake.use_pass_color = True
 
+        print("Texture Baker: Set Bake Materials")
         bake_bc_material = get_or_generate_bake_bc_material()
         bake_rmo_material = get_or_generate_bake_rmo_material()
+
+        print("Texture Baker: Select Bake Objects")
         highpoly_names = get_highpoly_names()
         highpoly_names = custom_sort(highpoly_names)
         bake_objects = get_bake_objects(highpoly_names)
 
-        # AmbientOcclusionのBake
-        self.report({"INFO"}, "Baking AmbientOcclusion")
+        print("Texture Baker: Baking AmbientOcclusion to HighPoly")
+        for c in bpy.data.collections:
+            c.hide_render = True
+            c.hide_viewport = True
+        bpy.data.collections["hi"].hide_render = False
+        bpy.data.collections["hi"].hide_viewport = False
+        bpy.context.scene.render.bake.use_selected_to_active = False
         bake_ambient_occlusion(highpoly_names)
 
-        baked_materials = []
-
+        bpy.data.collections["game"].hide_render = False
+        bpy.data.collections["game"].hide_viewport = False
         bpy.context.scene.render.bake.use_selected_to_active = True
+        baked_materials = []
         for bake_object in bake_objects:
             # 選択を解除
             for ob in bpy.data.objects:
@@ -452,14 +476,11 @@ class BakeAllOperator(bpy.types.Operator):
             target = bpy.data.objects[bake_object["target"]]
             target.select_set(True)
 
-            self.report({"INFO"}, f"Baking {bake_object['target']} Base Color")
+            print(f"Texture Baker: Baking Base Color of {bake_object['target']}")
             bake_color(bake_object, target, bake_bc_material, baked_materials)
-            self.report(
-                {"INFO"},
-                f"Baking {bake_object['target']} Roughness, Metallic, AmbientOcclusion",
-            )
+            print(f"Texture Baker: Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}")
             bake_roughness_metallic(bake_object, target, bake_rmo_material)
-            self.report({"INFO"}, f"Baking {bake_object['target']} Normal")
+            print(f"Texture Baker: Baking Normal of {bake_object['target']}")
             bake_normal(bake_object, target)
 
             # 選択を解除
@@ -469,17 +490,31 @@ class BakeAllOperator(bpy.types.Operator):
         bpy.data.materials.remove(bake_bc_material)
         bpy.data.materials.remove(bake_rmo_material)
 
+        print("Texture Baker: Save Images")
         for baked_material in baked_materials:
             save_image(baked_material)
 
-        self.report({"INFO"}, "Bake End")
+        print("Texture Baker: Finish Bake")
+        self.report({"INFO"}, "Texture Baker: Bake Complete")
+        return {"FINISHED"}
+
+
+class CreateMaterialOperator(bpy.types.Operator):
+    bl_idname = "object.texture_baker_create_material"
+    bl_label = "Create"
+
+    def execute(self, context):
+        print("Texture Baker: Create Material Start")
+
+        print(f"Texture Baker: Create {context.scene.texture_baker_material_name} Material")
+        self.report({"INFO"}, "Texture Baker: Material Created")
         return {"FINISHED"}
 
 
 # Define a new UI panel
-class BakeAllPanel(bpy.types.Panel):
-    bl_label = "Bake All"
-    bl_idname = "OBJECT_PT_bake_all"
+class TextureBakerPanel(bpy.types.Panel):
+    bl_label = "Texture Baker"
+    bl_idname = "OBJECT_PT_texture_baker"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Tool"
@@ -488,18 +523,33 @@ class BakeAllPanel(bpy.types.Panel):
         layout = self.layout
 
         # Add the operator to the panel
-        layout.operator("object.bake_all")
+        layout.label(text="Create HighPoly Material", icon="MATERIAL")
+        layout.prop(context.scene, "texture_baker_material_name")
+        layout.operator(CreateMaterialOperator.bl_idname)
+
+        layout.separator()
+
+        layout.label(text="Bake HighPoly to LowPoly", icon="IMAGE")
+        layout.operator(BakeTextureOperator.bl_idname)
 
 
 # Registration
 def register():
-    bpy.utils.register_class(BakeAllOperator)
-    bpy.utils.register_class(BakeAllPanel)
+    bpy.types.Scene.texture_baker_material_name = bpy.props.StringProperty(
+        name="Mat. Name",
+        description="Material Name",
+        default="Default",
+    )
+    bpy.utils.register_class(CreateMaterialOperator)
+    bpy.utils.register_class(BakeTextureOperator)
+    bpy.utils.register_class(TextureBakerPanel)
 
 
 def unregister():
-    bpy.utils.unregister_class(BakeAllOperator)
-    bpy.utils.unregister_class(BakeAllPanel)
+    del bpy.types.Scene.texture_baker_material_name
+    bpy.utils.unregister_class(CreateMaterialOperator)
+    bpy.utils.unregister_class(BakeTextureOperator)
+    bpy.utils.unregister_class(TextureBakerPanel)
 
 
 if __name__ == "__main__":
