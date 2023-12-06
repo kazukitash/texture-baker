@@ -1,18 +1,12 @@
 import bpy  # type: ignore
 
-from .modules.bake.bake_ambient_occlusion import bake_ambient_occlusion
-from .modules.bake.bake_basecolor import bake_basecolor
-from .modules.bake.bake_normal import bake_normal
-from .modules.bake.bake_object import get_bake_objects
-from .modules.bake.bake_roughness_metallic import bake_roughness_metallic
-from .modules.materials.generate_highpoly_material import generate_highpoly_material
-from .modules.materials.get_or_generate_bake_bc_material import (
-    get_or_generate_bake_bc_material,
-)
-from .modules.materials.get_or_generate_bake_rmo_material import (
-    get_or_generate_bake_rmo_material,
-)
+from .modules.models.ambient_occlusion import AmbientOcclusion
+from .modules.models.base_color import BaseColor
+from .modules.models.highpoly import Highpoly
+from .modules.models.normal import Normal
+from .modules.models.rmo import RMO
 from .modules.utilities.custom_sort import custom_sort
+from .modules.utilities.get_bake_objects import get_bake_objects
 from .modules.utilities.get_highpoly_names import get_highpoly_names
 from .modules.utilities.save_image import save_image
 
@@ -63,8 +57,8 @@ class BakeTextureOperator(bpy.types.Operator):
         bpy.context.scene.render.bake.use_pass_color = True
 
         print("Texture Baker: Set Bake Materials")
-        bake_bc_material = get_or_generate_bake_bc_material()
-        bake_rmo_material = get_or_generate_bake_rmo_material()
+        bake_bc_material = BaseColor.get_or_create()
+        bake_rmo_material = RMO.get_or_create()
 
         print("Texture Baker: Select Bake Objects")
         highpoly_names = get_highpoly_names()
@@ -78,7 +72,7 @@ class BakeTextureOperator(bpy.types.Operator):
         bpy.data.collections["hi"].hide_render = False
         bpy.data.collections["hi"].hide_viewport = False
         bpy.context.scene.render.bake.use_selected_to_active = False
-        bake_ambient_occlusion(highpoly_names)
+        AmbientOcclusion.bake(highpoly_names)
 
         bpy.data.collections["game"].hide_render = False
         bpy.data.collections["game"].hide_viewport = False
@@ -97,13 +91,13 @@ class BakeTextureOperator(bpy.types.Operator):
             target.select_set(True)
 
             print(f"Texture Baker: Baking Base Color of {bake_object['target']}")
-            bake_basecolor(bake_object, target, bake_bc_material, baked_materials)
+            BaseColor.bake(bake_object, target, bake_bc_material, baked_materials)
             print(
                 f"Texture Baker: Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}"
             )
-            bake_roughness_metallic(bake_object, target, bake_rmo_material)
+            RMO.bake(bake_object, target, bake_rmo_material)
             print(f"Texture Baker: Baking Normal of {bake_object['target']}")
-            bake_normal(bake_object, target)
+            Normal.bake(bake_object, target)
 
             # 選択を解除
             for ob in bpy.data.objects:
@@ -128,7 +122,7 @@ class CreateMaterialOperator(bpy.types.Operator):
     def execute(self, context):
         print("Texture Baker: Create Material Start")
 
-        generate_highpoly_material(context.scene.texture_baker_material_name)
+        Highpoly.create(context.scene.texture_baker_material_name)
         print(
             f"Texture Baker: Create {context.scene.texture_baker_material_name} Material"
         )

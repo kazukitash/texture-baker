@@ -1,10 +1,6 @@
 import re
-from typing import TypedDict
 
-
-class BakeObject(TypedDict):
-    target: str
-    sources: list[str]
+from ..models.bake_object import BakeObject
 
 
 def get_bake_objects(highpoly_names: list[str]) -> list[BakeObject]:
