@@ -1,17 +1,17 @@
 import bpy  # type: ignore
 
 
-class Highpoly:
+class Lowpoly:
     @classmethod
     def create(cls, name: str) -> bpy.types.Material:
-        """HighPoly用のマテリアルを生成する
+        """Lowpoly用のマテリアルを生成する
 
         Returns:
-            bpy.types.Material: HighPoly用のマテリアル
+            bpy.types.Material: Lowpoly用のマテリアル
         """
 
-        mat_name = f"hi_M_{name}"
-        tex_name = f"hi_T_{name}"
+        mat_name = f"M_{name}"
+        tex_name = f"T_{name}"
 
         # 既にマテリアルが存在する場合はそれを返す
         material = bpy.data.materials.get(mat_name)
@@ -51,7 +51,6 @@ class Highpoly:
         ao_node.location = (-700, 0)
         ao_image = bpy.data.images.new(f"{tex_name}_AO", 8192, 8192)
         ao_image.alpha_mode = "NONE"
-        ao_image.colorspace_settings.name = "Non-Color"
         ao_image.pack()
         ao_node.image = ao_image
 
@@ -69,7 +68,6 @@ class Highpoly:
         rm_node.location = (-700, -300)
         rm_image = bpy.data.images.new(f"{tex_name}_RM", 8192, 8192)
         rm_image.alpha_mode = "NONE"
-        rm_image.colorspace_settings.name = "Non-Color"
         rm_image.pack()
         rm_node.image = rm_image
 
@@ -96,57 +94,6 @@ class Highpoly:
         # UVMap
         links.new(bc_uvmap.outputs["UV"], bc_node.inputs["Vector"])
         links.new(rm_uvmap.outputs["UV"], rm_node.inputs["Vector"])
-        links.new(ao_uvmap.outputs["UV"], ao_node.inputs["Vector"])
-
-        return material
-
-    @classmethod
-    def create_base(cls, name: str) -> bpy.types.Material:
-        """Highpoly用のマテリアルを生成する
-
-        Returns:
-            bpy.types.Material: Highpoly用のマテリアル
-        """
-
-        mat_name = f"hi_M_{name}"
-        tex_name = f"hi_T_{name}"
-
-        # 既にマテリアルが存在する場合はそれを返す
-        material = bpy.data.materials.get(mat_name)
-        if material is not None:
-            return material
-
-        # マテリアルの生成
-        material = bpy.data.materials.new(name=mat_name)
-        material.use_nodes = True
-        nodes = material.node_tree.nodes
-        links = material.node_tree.links
-
-        # Principled BSDFノードを取得
-        principled = nodes["Principled BSDF"]
-
-        # AmbientOcclusionのノードを生成
-        ao_node = nodes.new(type="ShaderNodeTexImage")
-        ao_node.name = "AmbientOcclusion"
-        ao_node.location = (-700, 0)
-        ao_image = bpy.data.images.new(f"{tex_name}_AO", 8192, 8192)
-        ao_image.alpha_mode = "NONE"
-        ao_image.pack()
-        ao_node.image = ao_image
-
-        ao_uvmap = nodes.new(type="ShaderNodeUVMap")
-        ao_uvmap.name = "AmbientOcclusion UVMap"
-        ao_uvmap.location = (-900, -100)
-
-        ao_separate = nodes.new(type="ShaderNodeSeparateXYZ")
-        ao_separate.name = "AmbientOcclusion Separate"
-        ao_separate.location = (-400, 100)
-
-        # ノードの接続
-        # AmbientOcclusion
-        links.new(ao_node.outputs["Color"], principled.inputs["Base Color"])
-
-        # UVMap
         links.new(ao_uvmap.outputs["UV"], ao_node.inputs["Vector"])
 
         return material

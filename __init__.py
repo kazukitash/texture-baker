@@ -3,6 +3,7 @@ import bpy  # type: ignore
 from .modules.models.ambient_occlusion import AmbientOcclusion
 from .modules.models.base_color import BaseColor
 from .modules.models.highpoly import Highpoly
+from .modules.models.lowpoly import Lowpoly
 from .modules.models.normal import Normal
 from .modules.models.rmo import RMO
 from .modules.utilities.custom_sort import custom_sort
@@ -14,10 +15,10 @@ from .modules.utilities.save_image import save_image
 bl_info = {
     "name": "Texture Baker",
     "author": "kazukitash",
-    "version": (2, 2),
-    "blender": (3, 6, 5),
+    "version": (2, 3),
+    "blender": (4, 1, 1),
     "location": "View3D > UI > Texture Baker",
-    "description": "Bake Textures for BaseColor, Roughness, Metallic, AmbientOcclusion, Normal from HighPoly",
+    "description": "Bake Normal and AmbientOcclusion Textures from HighPoly",
     "warning": "",
     "doc_url": "",
     "category": "3D View",
@@ -141,6 +142,20 @@ class CreateMaterialOperator(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class CreateBaseMaterialOperator(bpy.types.Operator):
+    bl_idname = "object.texture_baker_create_base_material"
+    bl_label = "Create Base"
+
+    def execute(self, context):
+        print_log("Create Base Material Start")
+
+        Highpoly.create_base(context.scene.texture_baker_base_name)
+        Lowpoly.create(context.scene.texture_baker_base_name)
+        print_log(f"Create Materials. name: {context.scene.texture_baker_base_name}")
+        self.report({"INFO"}, "Texture Baker: Materials Created")
+        return {"FINISHED"}
+
+
 # Define a new UI panel
 class TextureBakerPanel(bpy.types.Panel):
     bl_label = "Texture Baker"
@@ -151,6 +166,13 @@ class TextureBakerPanel(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+
+        # Add the operator to the panel
+        layout.label(text="Create Materials", icon="MATERIAL")
+        layout.prop(context.scene, "texture_baker_base_name")
+        layout.operator(CreateBaseMaterialOperator.bl_idname)
+
+        layout.separator()
 
         # Add the operator to the panel
         layout.label(text="Create HighPoly Material", icon="MATERIAL")
@@ -170,14 +192,22 @@ def register():
         description="Material Name",
         default="Default",
     )
+    bpy.types.Scene.texture_baker_base_name = bpy.props.StringProperty(
+        name="Base Name",
+        description="Base Name of Material",
+        default="Default",
+    )
     bpy.utils.register_class(CreateMaterialOperator)
+    bpy.utils.register_class(CreateBaseMaterialOperator)
     bpy.utils.register_class(BakeTextureOperator)
     bpy.utils.register_class(TextureBakerPanel)
 
 
 def unregister():
     del bpy.types.Scene.texture_baker_material_name
+    del bpy.types.Scene.texture_baker_base_name
     bpy.utils.unregister_class(CreateMaterialOperator)
+    bpy.utils.unregister_class(CreateBaseMaterialOperator)
     bpy.utils.unregister_class(BakeTextureOperator)
     bpy.utils.unregister_class(TextureBakerPanel)
 
