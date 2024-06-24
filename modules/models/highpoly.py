@@ -10,7 +10,8 @@ class Highpoly:
             bpy.types.Material: HighPoly用のマテリアル
         """
 
-        mat_name = f"hi_{name}"
+        mat_name = f"hi_M_{name}"
+        tex_name = f"hi_T_{name}"
 
         # 既にマテリアルが存在する場合はそれを返す
         material = bpy.data.materials.get(mat_name)
@@ -30,7 +31,7 @@ class Highpoly:
         bc_node = nodes.new(type="ShaderNodeTexImage")
         bc_node.name = "BaseColor"
         bc_node.location = (-700, 300)
-        bc_image = bpy.data.images.new(f"{mat_name}_BC", 8192, 8192)
+        bc_image = bpy.data.images.new(f"{tex_name}_BC", 8192, 8192)
         bc_image.alpha_mode = "NONE"
         bc_image.pack()
         bc_node.image = bc_image
@@ -48,7 +49,7 @@ class Highpoly:
         ao_node = nodes.new(type="ShaderNodeTexImage")
         ao_node.name = "AmbientOcclusion"
         ao_node.location = (-700, 0)
-        ao_image = bpy.data.images.new(f"{mat_name}_AO", 8192, 8192)
+        ao_image = bpy.data.images.new(f"{tex_name}_AO", 8192, 8192)
         ao_image.alpha_mode = "NONE"
         ao_image.colorspace_settings.name = "Non-Color"
         ao_image.pack()
@@ -66,7 +67,7 @@ class Highpoly:
         rm_node = nodes.new(type="ShaderNodeTexImage")
         rm_node.name = "RoughnessMetallic"
         rm_node.location = (-700, -300)
-        rm_image = bpy.data.images.new(f"{mat_name}_RM", 8192, 8192)
+        rm_image = bpy.data.images.new(f"{tex_name}_RM", 8192, 8192)
         rm_image.alpha_mode = "NONE"
         rm_image.colorspace_settings.name = "Non-Color"
         rm_image.pack()

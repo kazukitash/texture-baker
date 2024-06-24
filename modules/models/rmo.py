@@ -86,7 +86,6 @@ class RMO:
         links = material.node_tree.links
 
         node = nodes["RMO"]
-        node.image.generated_color = (0, 0, 0, 1)
         node.select = True
         nodes.active = node
 

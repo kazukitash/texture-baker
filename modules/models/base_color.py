@@ -52,7 +52,7 @@ class BaseColor:
             source_material = source.material_slots[0].material
             source_materials.append(source_material)
 
-            target_material_name = source_material.name.replace("hi_", "")
+            target_material_name = source_material.name.replace("hi_M_", "")
             material = bpy.data.materials.get(target_material_name)
             if material is None:
                 material = TargetMaterial.get_or_create(target_material_name)
@@ -72,7 +72,6 @@ class BaseColor:
         links = material.node_tree.links
 
         node = nodes["BaseColor"]
-        node.image.generated_color = (0, 0, 0, 1)
         node.select = True
         nodes.active = node
 

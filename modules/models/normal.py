@@ -16,7 +16,6 @@ class Normal:
         links = material.node_tree.links
 
         node = nodes["Normal"]
-        node.image.generated_color = (0, 0, 0, 1)
         node.select = True
         nodes.active = node
 

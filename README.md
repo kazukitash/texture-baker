@@ -19,5 +19,14 @@ sh setup.sh
   - flake8（リンター）,black（フォーマッター),isort（インポーター）の代わり
 
 ```bash
-zip -r texture-baker.zip texture-baker/ -x "*.venv*" -x "*.git*" -x "*.vscode*" -x "*.gitignore*" -x "*poetry.lock*" -x "*pyproject.toml*" -x "*README.md*" -x "*setup.sh*" -x "*.DS_Store*"
+rm texture-baker.zip && zip -r texture-baker.zip texture-baker/ -x "*.venv*" -x "*.git*" -x "*.vscode*" -x "*.gitignore*" -x "*poetry.lock*" -x "*pyproject.toml*" -x "*README.md*" -x "*setup.sh*" -x "*.DS_Store*"
+```
+
+## Blenderにpipとpillowを入れる必要がある。
+
+```
+cd ~/Downloads
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+/Applications/Blender.app/Contents/Resources/3.6/python/bin/python3.10 get-pip.py
+/Applications/Blender.app/Contents/Resources/3.6/python/bin/python3.10 -m pip install pillow
 ```

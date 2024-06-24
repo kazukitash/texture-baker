@@ -8,12 +8,13 @@ from .modules.models.rmo import RMO
 from .modules.utilities.custom_sort import custom_sort
 from .modules.utilities.get_bake_objects import get_bake_objects
 from .modules.utilities.get_highpoly_names import get_highpoly_names
+from .modules.utilities.print_log import print_log
 from .modules.utilities.save_image import save_image
 
 bl_info = {
     "name": "Texture Baker",
     "author": "kazukitash",
-    "version": (2, 0),
+    "version": (2, 2),
     "blender": (3, 6, 5),
     "location": "View3D > UI > Texture Baker",
     "description": "Bake Textures for BaseColor, Roughness, Metallic, AmbientOcclusion, Normal from HighPoly",
@@ -29,24 +30,23 @@ class BakeTextureOperator(bpy.types.Operator):
     bl_label = "Bake"
 
     def execute(self, context):
-        print("Texture Baker: Bake Start")
+        print_log("Bake Start")
 
-        print("Texture Baker: Set Bake Settings")
+        print_log("Set Bake Settings")
         render_engine = bpy.context.scene.render.engine
         if render_engine != "CYCLES":
             bpy.context.scene.render.engine = "CYCLES"
 
         cycles_preferences = bpy.context.preferences.addons["cycles"].preferences
         if bpy.app.build_platform == b"Windows":
-            print("Texture Baker: Set CUDA")
+            print_log("Set CUDA")
             cycles_preferences.compute_device_type = "CUDA"
-            cycles_preferences.refresh_devices()
-            cycles_preferences.devices["NVIDIA GeForce RTX 4090"].use = True
         else:
-            print("Texture Baker: Set METAL")
+            print_log("Set METAL")
             cycles_preferences.compute_device_type = "METAL"
-            cycles_preferences.refresh_devices()
-            cycles_preferences.devices["Apple M2 Max (GPU - 38 cores)"].use = True
+        cycles_preferences.refresh_devices()
+        cycles_preferences.devices[1].use = True
+        print_log(f"Use GPU {cycles_preferences.divices[1].name}")
         bpy.context.scene.cycles.device = "GPU"
         bpy.context.scene.render.bake.use_cage = True
         bpy.context.scene.render.bake.use_clear = False
@@ -56,16 +56,16 @@ class BakeTextureOperator(bpy.types.Operator):
         bpy.context.scene.render.bake.use_pass_indirect = False
         bpy.context.scene.render.bake.use_pass_color = True
 
-        print("Texture Baker: Set Bake Materials")
+        print_log("Set Bake Materials")
         bake_bc_material = BaseColor.get_or_create()
         bake_rmo_material = RMO.get_or_create()
 
-        print("Texture Baker: Select Bake Objects")
+        print_log("Select Bake Objects")
         highpoly_names = get_highpoly_names()
         highpoly_names = custom_sort(highpoly_names)
         bake_objects = get_bake_objects(highpoly_names)
 
-        print("Texture Baker: Baking AmbientOcclusion to HighPoly")
+        print_log("Baking AmbientOcclusion to HighPoly")
         for c in bpy.data.collections:
             c.hide_render = True
             c.hide_viewport = True
@@ -90,13 +90,26 @@ class BakeTextureOperator(bpy.types.Operator):
             target = bpy.data.objects[bake_object["target"]]
             target.select_set(True)
 
-            print(f"Texture Baker: Baking Base Color of {bake_object['target']}")
+            if len(target.material_slots) > 0:
+                material = target.material_slots[0].material
+                nodes = material.node_tree.nodes
+
+                bc_node = nodes["BaseColor"]
+                bc_node.image.generated_color = (0, 0, 0, 1)
+
+                rmo_node = nodes["RMO"]
+                rmo_node.image.generated_color = (0, 0, 0, 1)
+
+                n_node = nodes["Normal"]
+                n_node.image.generated_color = (0, 0, 0, 1)
+
+            print_log(f"Baking Base Color of {bake_object['target']}")
             BaseColor.bake(bake_object, target, bake_bc_material, baked_materials)
-            print(
-                f"Texture Baker: Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}"
+            print_log(
+                f"Baking Roughness, Metallic, AmbientOcclusion of {bake_object['target']}"
             )
             RMO.bake(bake_object, target, bake_rmo_material)
-            print(f"Texture Baker: Baking Normal of {bake_object['target']}")
+            print_log(f"Baking Normal of {bake_object['target']}")
             Normal.bake(bake_object, target)
 
             # 選択を解除
@@ -106,11 +119,11 @@ class BakeTextureOperator(bpy.types.Operator):
         bpy.data.materials.remove(bake_bc_material)
         bpy.data.materials.remove(bake_rmo_material)
 
-        print("Texture Baker: Save Images")
+        print_log("Save Images")
         for baked_material in baked_materials:
             save_image(baked_material)
 
-        print("Texture Baker: Finish Bake")
+        print_log("Finish Bake")
         self.report({"INFO"}, "Texture Baker: Bake Complete")
         return {"FINISHED"}
 
@@ -120,12 +133,10 @@ class CreateMaterialOperator(bpy.types.Operator):
     bl_label = "Create"
 
     def execute(self, context):
-        print("Texture Baker: Create Material Start")
+        print_log("Create Material Start")
 
         Highpoly.create(context.scene.texture_baker_material_name)
-        print(
-            f"Texture Baker: Create {context.scene.texture_baker_material_name} Material"
-        )
+        print_log(f"Create {context.scene.texture_baker_material_name} Material")
         self.report({"INFO"}, "Texture Baker: Material Created")
         return {"FINISHED"}
 

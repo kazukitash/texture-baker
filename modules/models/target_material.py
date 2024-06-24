@@ -10,13 +10,16 @@ class TargetMaterial:
             bpy.types.Material: Bake用のマテリアル
         """
 
+        mat_name = f"M_{name}"
+        tex_name = f"T_{name}"
+
         # 既にマテリアルが存在する場合はそれを返す
-        material = bpy.data.materials.get(name)
+        material = bpy.data.materials.get(mat_name)
         if material is not None:
             return material
 
         # マテリアルの生成
-        material = bpy.data.materials.new(name=name)
+        material = bpy.data.materials.new(name=mat_name)
         material.use_nodes = True
         nodes = material.node_tree.nodes
         links = material.node_tree.links
@@ -27,14 +30,14 @@ class TargetMaterial:
         bc_node = nodes.new(type="ShaderNodeTexImage")
         bc_node.name = "BaseColor"
         bc_node.location = (-700, 300)
-        bc_image = bpy.data.images.new(f"T_{name}_BC", 8192, 8192)
+        bc_image = bpy.data.images.new(f"{tex_name}_BC", 8192, 8192)
         bc_image.alpha_mode = "NONE"
         bc_node.image = bc_image
 
         rmo_node = nodes.new(type="ShaderNodeTexImage")
         rmo_node.name = "RMO"
         rmo_node.location = (-700, 0)
-        rmo_image = bpy.data.images.new(f"T_{name}_RMO", 8192, 8192)
+        rmo_image = bpy.data.images.new(f"{tex_name}_RMO", 8192, 8192)
         rmo_image.alpha_mode = "NONE"
         rmo_image.colorspace_settings.name = "Non-Color"
         rmo_node.image = rmo_image
@@ -51,7 +54,7 @@ class TargetMaterial:
         n_node = nodes.new(type="ShaderNodeTexImage")
         n_node.name = "Normal"
         n_node.location = (-700, -300)
-        n_image = bpy.data.images.new(f"T_{name}_N", 8192, 8192)
+        n_image = bpy.data.images.new(f"{tex_name}_N", 8192, 8192)
         n_image.alpha_mode = "NONE"
         n_image.colorspace_settings.name = "Non-Color"
         n_node.image = n_image

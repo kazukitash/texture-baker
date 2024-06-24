@@ -20,8 +20,9 @@ class AmbientOcclusion:
             node.select = True
             nodes.active = node
 
-            link = node.outputs["Color"].links[0]
-            links.remove(link)
+            if not len(node.outputs["Color"].links) == 0:
+                link = node.outputs["Color"].links[0]
+                links.remove(link)
 
             bpy.context.view_layer.objects.active = target
             target.select_set(True)
@@ -35,7 +36,9 @@ class AmbientOcclusion:
 
             node = nodes["AmbientOcclusion"]
             node.select = False
-            links.new(
-                node.outputs["Color"],
-                nodes["AmbientOcclusion Separate"].inputs["Vector"],
-            )
+
+            if len(node.outputs["Color"].links) == 0:
+                links.new(
+                    node.outputs["Color"],
+                    nodes["AmbientOcclusion Separate"].inputs["Vector"],
+                )

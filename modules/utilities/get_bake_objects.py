@@ -17,7 +17,7 @@ def get_bake_objects(highpoly_names: list[str]) -> list[BakeObject]:
     for highpoly_name in highpoly_names:
         lowpoly_name = highpoly_name.lstrip("hi_").split("_")[0].replace("#", ".*")
 
-        pattern = re.compile(lowpoly_name)
+        pattern = re.compile(f"^{lowpoly_name}$")
         match_bakes: list[BakeObject] = list(
             filter(lambda m: pattern.search(m["target"]), bake_objects)
         )
