@@ -1,10 +1,10 @@
 [tool.poetry]
-name = "template-python"
+name = "texture-baker"
 version = "0.1.0"
 description = ""
-authors = ["kazuki <kazuki@jeis-ai.com>"]
+authors = ["kazukitash <kazukitash@gmail.com>"]
 readme = "README.md"
-packages = [{ include = "template-python" }]
+packages = [{ include = "texture-baker" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"
