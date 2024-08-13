@@ -22,6 +22,8 @@ class Normal:
         link = node.outputs["Color"].links[0]
         links.remove(link)
 
+        cage = bpy.data.objects[f"cage_{target.name}"]
+        bpy.context.scene.render.bake.cage_object = cage
         bpy.ops.object.bake(type="NORMAL")
 
         node.select = False

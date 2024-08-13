@@ -1,9 +1,16 @@
 import bpy  # type: ignore
 
+from ..utilities.print_log import print_log
+
 
 class AmbientOcclusion:
     @classmethod
     def bake(cls, highpoly_names: list[str]):
+        print_log(highpoly_names)
+
+        bpy.data.collections["game"].hide_render = True
+        bpy.data.collections["game"].hide_viewport = True
+
         targets = [bpy.data.objects[name] for name in highpoly_names]
 
         # 選択を解除
@@ -42,3 +49,6 @@ class AmbientOcclusion:
                     node.outputs["Color"],
                     nodes["AmbientOcclusion Separate"].inputs["Vector"],
                 )
+
+        bpy.data.collections["game"].hide_render = False
+        bpy.data.collections["game"].hide_viewport = False

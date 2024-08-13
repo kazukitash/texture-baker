@@ -6,7 +6,10 @@ from ..models.bake_object import BakeObject
 def get_bake_objects(highpoly_names: list[str]) -> list[BakeObject]:
     """bakeオブジェクトの情報を取得する
         hi_A_Bの場合、AにBakeする
+            例: Legs -> hi_Legs, hi_Legs_Buckle
         hi_A#_Bの場合、ACやADなど#を.*にしてregexしたメッシュにBakeする
+            例: SeatCenter -> hi_SeatCenter, hi_Seat#_Buckle
+            例: SeatLeft -> hi_SeatLeft, hi_Seat#_Buckle
 
     Returns:
         list[dict]: bakeオブジェクトの情報のリスト

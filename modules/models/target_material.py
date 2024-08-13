@@ -1,7 +1,30 @@
 import bpy  # type: ignore
 
+from ..models.bake_object import BakeObject
 
 class TargetMaterial:
+    @classmethod
+    def delete(cls, bake_objects: list[BakeObject]):
+        for bake_object in bake_objects:
+            target = bpy.data.objects[bake_object["target"]]
+            for material in [s.material for s in target.material_slots]:
+                if material is not None:
+                    # マテリアルが使用中かどうかをチェック
+                    for obj in bpy.data.objects:
+                        if material.name in [mat.name if mat is not None else "" for mat in obj.data.materials]:
+                            # オブジェクトのマテリアルスロットからマテリアルを取り除く
+                            for i in range(len(obj.data.materials)):
+                                if obj.data.materials[i] == material:
+                                    obj.data.materials[i] = None
+
+                            # `None`を削除
+                            obj.data.materials.clear()
+                            for mat in [m for m in obj.material_slots if m.material is not None]:
+                                obj.data.materials.append(mat.material)
+
+                # 使用中のマテリアルを削除
+                bpy.data.materials.remove(material)
+
     @classmethod
     def get_or_create(cls, name: str) -> bpy.types.Material:
         """Bake用のマテリアルを生成する
@@ -27,19 +50,23 @@ class TargetMaterial:
         # Principled BSDFノードを取得
         principled = nodes["Principled BSDF"]
 
+        # BaseColorのノードを生成
         bc_node = nodes.new(type="ShaderNodeTexImage")
         bc_node.name = "BaseColor"
         bc_node.location = (-700, 300)
         bc_image = bpy.data.images.new(f"{tex_name}_BC", 8192, 8192)
         bc_image.alpha_mode = "NONE"
+        bc_image.pack()
         bc_node.image = bc_image
 
+        # Roughness, Metallic, AmbientOcclusionのノードを生成
         rmo_node = nodes.new(type="ShaderNodeTexImage")
         rmo_node.name = "RMO"
         rmo_node.location = (-700, 0)
         rmo_image = bpy.data.images.new(f"{tex_name}_RMO", 8192, 8192)
         rmo_image.alpha_mode = "NONE"
         rmo_image.colorspace_settings.name = "Non-Color"
+        rmo_image.pack()
         rmo_node.image = rmo_image
 
         rmo_separate = nodes.new(type="ShaderNodeSeparateXYZ")
@@ -50,6 +77,7 @@ class TargetMaterial:
         mix.name = "BaseColor Mix"
         mix.location = (-200, 300)
         mix.blend_type = "MULTIPLY"
+        mix.inputs["Fac"].default_value = 0.8
 
         n_node = nodes.new(type="ShaderNodeTexImage")
         n_node.name = "Normal"
@@ -57,6 +85,7 @@ class TargetMaterial:
         n_image = bpy.data.images.new(f"{tex_name}_N", 8192, 8192)
         n_image.alpha_mode = "NONE"
         n_image.colorspace_settings.name = "Non-Color"
+        n_image.pack()
         n_node.image = n_image
 
         normal_map = nodes.new(type="ShaderNodeNormalMap")

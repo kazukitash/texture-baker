@@ -6,17 +6,31 @@ from ..models.target_material import TargetMaterial
 
 class BaseColor:
     @classmethod
-    def get_or_create(cls) -> bpy.types.Material:
+    def create(cls) -> bpy.types.Material:
         """Bake BC用のマテリアルを生成する
 
         Returns:
             bpy.types.Material: Bake BC用のマテリアル
         """
 
-        # 既にマテリアルが存在する場合はそれを返す
+        # 既にマテリアルが存在する場合は削除する
         material = bpy.data.materials.get("bake_BC")
         if material is not None:
-            return material
+            # マテリアルが使用中かどうかをチェック
+            for obj in bpy.data.objects:
+                if material.name in [mat.name if mat is not None else "" for mat in obj.data.materials]:
+                    # オブジェクトのマテリアルスロットからマテリアルを取り除く
+                    for i in range(len(obj.data.materials)):
+                        if obj.data.materials[i] == material:
+                            obj.data.materials[i] = None
+
+                    # `None`を削除
+                    obj.data.materials.clear()
+                    for mat in [m for m in obj.material_slots if m.material is not None]:
+                        obj.data.materials.append(mat.material)
+
+            # 使用中のマテリアルを削除
+            bpy.data.materials.remove(material)
 
         # マテリアルの生成
         material = bpy.data.materials.new(name="bake_BC")
@@ -56,7 +70,8 @@ class BaseColor:
             material = bpy.data.materials.get(target_material_name)
             if material is None:
                 material = TargetMaterial.get_or_create(target_material_name)
-                baked_materials.append(material)
+                if material.name not in [m.name for m in baked_materials]:
+                    baked_materials.append(material)
             if len(target.material_slots) == 0:
                 target.data.materials.append(material)
             else:
@@ -78,6 +93,8 @@ class BaseColor:
         link = node.outputs["Color"].links[0]
         links.remove(link)
 
+        cage = bpy.data.objects[f"cage_{target.name}"]
+        bpy.context.scene.render.bake.cage_object = cage
         bpy.ops.object.bake(type="DIFFUSE")
 
         node.select = False
